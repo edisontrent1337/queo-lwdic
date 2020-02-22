@@ -41,24 +41,39 @@ public class LWDIContainer {
 		String beanAnnotation = Bean.class.getName();
 		try (ScanResult scanResult =
 					 new ClassGraph()
-							 // .verbose()
 							 .enableAllInfo()
 							 .whitelistPackages(packageName)
 							 .scan()) {
 			for (ClassInfo beanClassInfo : scanResult.getClassesWithAnnotation(beanAnnotation)) {
+
+				AnnotationParameterValueList beanAnnotationParameters = beanClassInfo.getAnnotationInfo(Bean.class.getName()).getParameterValues();
+				if (beanAnnotationParameters != null) {
+					Boolean injectable = (Boolean) beanAnnotationParameters.get(0).getValue();
+					if (!injectable) {
+						LOGGER.info("Skipping bean {} with flag injectable=false.", beanClassInfo.getName());
+						continue;
+					}
+				}
+
 				AnnotationInfo namedAnnotationInfo = beanClassInfo.getAnnotationInfo(Named.class.getName());
 				String beanClassName = beanClassInfo.getName();
 				Object instanceOfBean = createInstanceForClass(beanClassName);
 				if (namedAnnotationInfo != null) {
-					List<AnnotationParameterValue> beanParameterValues = namedAnnotationInfo.getParameterValues();
-					if (beanParameterValues.size() == 1) {
-						String beanName = (String) beanParameterValues.get(0).getValue();
+					List<AnnotationParameterValue> namedAnnotationParameterValues = namedAnnotationInfo.getParameterValues();
+					if (namedAnnotationParameterValues.size() == 1) {
+						String beanName = (String) namedAnnotationParameterValues.get(0).getValue();
 						LOGGER.info("Registering bean of type {} with name {}.", beanClassName, beanName);
 						addBean(beanName, instanceOfBean);
 					}
 				} else {
 					LOGGER.info("Registering bean of type {} with name {}.", beanClassName, beanClassName);
-					addBean(beanClassName, instanceOfBean);
+					if (beanClassInfo.isInterface() || beanClassInfo.isAbstract()) {
+						LOGGER.info("Registering bean of type {} with name {}.", beanClassName, beanClassName);
+						addInstanceToBean(beanClassName, instanceOfBean);
+					}
+					else {
+						addBean(beanClassName, instanceOfBean);
+					}
 				}
 				for (ClassInfo interfaceClassInfo : beanClassInfo.getInterfaces()) {
 					String interfaceName = interfaceClassInfo.getName();

@@ -103,4 +103,13 @@ public class LWDIContainerTest {
 		container.start();
 	}
 
+
+	@Test
+	public void testInjectionFlagForBeans() {
+		LWDIContainer container = new LWDIContainer();
+		container.scanPackage("com.trent.queo.lwdic.injectiontests.uninjectable");
+		Map<String, Set<Object>> containerBeans = container.getBeans();
+		assertEquals(0, containerBeans.size());
+		container.start();
+	}
 }
