@@ -11,11 +11,12 @@ import static org.junit.Assert.assertNotNull;
 
 public class LWDIContainerTest {
 
+	private static final String TEST_PACKAGE = "com.trent.queo.lwdic.examples";
+
 	@Test
 	public void testContainerPackageScan() {
-		String packageName = "com.trent.queo.lwdic.examples";
 		LWDIContainer container = new LWDIContainer();
-		container.scanPackage(packageName);
+		container.scanPackage(TEST_PACKAGE);
 		Map<String, Object> containerBeans = container.getBeans();
 		assertEquals("The container does not manage the expected number of beans.", 6, containerBeans.keySet().size());
 
@@ -29,7 +30,7 @@ public class LWDIContainerTest {
 
 	private void assertInterfaceCompatibility(LWDIContainer container) {
 		IDemoBean interfaceDemoBean = container.getBeanByType(IDemoBean.class);
-		assertNotNull("The bean was not registered correctly, as interfaces implemented by the bean were disregarded " +
+		assertNotNull("The bean was not registered correctly, as this interface implemented by another bean was disregarded " +
 				"during registration.", interfaceDemoBean);
 
 		ImplementingDemoBean implementingDemoBean = container.getBeanByType(ImplementingDemoBean.class);
@@ -39,7 +40,7 @@ public class LWDIContainerTest {
 
 	private void assertSuperClassCompatibility(LWDIContainer container) {
 		AbstractDemoBean abstractDemoBean = container.getBeanByType(AbstractDemoBean.class);
-		assertNotNull("The bean was not registered correctly, as super classes of the bean were disregarded " +
+		assertNotNull("The bean was not registered correctly, as this super class of another bean was disregarded " +
 				"during registration.", abstractDemoBean);
 
 		ConcreteDemoBean concreteDemoBean = container.getBeanByType(ConcreteDemoBean.class);
@@ -49,7 +50,7 @@ public class LWDIContainerTest {
 	}
 
 	@Test
-	public void testProgrammaticAdditionOfBeans() {
+	public void testProgrammaticCreationOfBeans() {
 		LWDIContainer container = new LWDIContainer();
 		Integer beanA = 0;
 		Integer beanB = 1;
@@ -78,6 +79,20 @@ public class LWDIContainerTest {
 		Integer beanB = 1;
 
 		LWDIContainer container = new LWDIContainer();
+		container.scanPackage(TEST_PACKAGE);
+		container.addBean("a", beanA);
+		container.addBean("b", beanB);
+		container.injectBeans();
+
+		DemoInjectionTargetBean injectionTargetBean = container.getBeanByType(DemoInjectionTargetBean.class);
+		assertNotNull(injectionTargetBean.valueA);
+		assertEquals(beanA, injectionTargetBean.valueA);
+		assertNotNull(injectionTargetBean.valueB);
+		assertEquals(beanB, injectionTargetBean.valueB);
+
+		assertNotNull(injectionTargetBean.abstractDemoBean);
+
 	}
+
 
 }

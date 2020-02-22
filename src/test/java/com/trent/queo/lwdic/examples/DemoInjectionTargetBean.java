@@ -15,4 +15,7 @@ public class DemoInjectionTargetBean {
 	@Inject
 	@Named(name = "b")
 	public Integer valueB;
+
+	@Inject
+	public AbstractDemoBean abstractDemoBean;
 }

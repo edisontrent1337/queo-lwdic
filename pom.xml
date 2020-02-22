@@ -44,6 +44,15 @@
 			<version>${slf4j.version}</version>
 		</dependency>
 
+		<!-- https://mvnrepository.com/artifact/org.slf4j/slf4j-simple -->
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-simple</artifactId>
+			<version>${slf4j.version}</version>
+			<scope>test</scope>
+		</dependency>
+
+
 		<!-- Test dependencies - jUnit -->
 		<dependency>
 			<groupId>junit</groupId>
