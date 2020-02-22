@@ -11,7 +11,6 @@ public class DemoInjectionTargetBean {
 	@Named(name = "a")
 	public Integer valueA;
 
-
 	@Inject
 	@Named(name = "b")
 	public Integer valueB;

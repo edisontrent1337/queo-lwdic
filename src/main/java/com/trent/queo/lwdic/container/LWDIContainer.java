@@ -4,6 +4,7 @@ import com.trent.queo.lwdic.annotations.Bean;
 import com.trent.queo.lwdic.annotations.Inject;
 import com.trent.queo.lwdic.annotations.Named;
 import com.trent.queo.lwdic.container.exceptions.BeanAlreadyDefinedException;
+import com.trent.queo.lwdic.container.exceptions.BeanConflictException;
 import com.trent.queo.lwdic.container.exceptions.NoSuitableBeanFoundException;
 import io.github.classgraph.*;
 import org.slf4j.Logger;
@@ -21,7 +22,7 @@ public class LWDIContainer {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(LWDIContainer.class);
 
-	private Map<String, Object> beans;
+	private Map<String, Set<Object>> beans;
 	private Set<String> packages;
 
 	public LWDIContainer() {
@@ -62,29 +63,33 @@ public class LWDIContainer {
 				for (ClassInfo interfaceClassInfo : beanClassInfo.getInterfaces()) {
 					String interfaceName = interfaceClassInfo.getName();
 					LOGGER.info("Registering bean of type {} with name {}.", interfaceName, interfaceName);
-					addBean(interfaceName, instanceOfBean);
+					addInstanceToBean(interfaceName, instanceOfBean);
 				}
 				ClassInfo superclassInfo = beanClassInfo.getSuperclass();
 				if (superclassInfo != null) {
 					String superClassName = superclassInfo.getName();
 					LOGGER.info("Registering bean of type {} with name {}.", superClassName, superClassName);
-					addBean(superClassName, instanceOfBean);
+					addInstanceToBean(superClassName, instanceOfBean);
 				}
 			}
 		}
 	}
 
-	public void injectBeans() {
-		for (Object bean : beans.values()) {
+	private void injectBeans() {
+
+		Set<Object> beanObjects = new HashSet<>();
+		beans.values().forEach(beanObjects::addAll);
+
+		for (Object bean : beanObjects) {
 			Field[] fields = bean.getClass().getFields();
 			for (Field field : fields) {
 				Set<Annotation> annotations = Arrays.stream(field.getAnnotations()).collect(Collectors.toSet());
-				for (Annotation a : annotations) {
-					if (a instanceof Inject && annotations.size() == 1) {
+				for (Annotation annotation : annotations) {
+					if (annotation instanceof Inject && annotations.size() == 1) {
 						injectBean(bean, field);
 					}
-					if (a instanceof Named) {
-						injectNamedBean(bean, ((Named) a).name(), field);
+					if (annotation instanceof Named) {
+						injectNamedBean(bean, ((Named) annotation).name(), field);
 					}
 				}
 			}
@@ -145,7 +150,7 @@ public class LWDIContainer {
 	 * Starts the container and injects all beans.
 	 */
 	public void start() {
-
+		injectBeans();
 	}
 
 	/**
@@ -158,10 +163,21 @@ public class LWDIContainer {
 		if (beans.containsKey(beanName)) {
 			throw new BeanAlreadyDefinedException(beanName);
 		}
-		beans.put(beanName, bean);
+		Set<Object> beanObjects = new HashSet<>();
+		beanObjects.add(bean);
+		beans.put(beanName, beanObjects);
 	}
 
-	public Map<String, Object> getBeans() {
+	private void addInstanceToBean(String beanName, Object bean) {
+		Set<Object> beanObjects = beans.get(beanName);
+		if (beanObjects == null) {
+			beanObjects = new HashSet<>();
+		}
+		beanObjects.add(bean);
+		beans.put(beanName, beanObjects);
+	}
+
+	public Map<String, Set<Object>> getBeans() {
 		return this.beans;
 	}
 
@@ -174,7 +190,7 @@ public class LWDIContainer {
 		if (!beans.containsKey(beanClassName)) {
 			throw new NoSuitableBeanFoundException("No suitable bean was found for " + beanClassName + ".");
 		}
-		Object result = beans.get(beanClassName);
+		Object result = retrieveBeanObjects(beanClassName);
 		if (!beanType.isInstance(result)) {
 			throw new NoSuitableBeanFoundException("No suitable bean was found for " + beanClassName + ".");
 		} else {
@@ -186,12 +202,24 @@ public class LWDIContainer {
 		if (!beans.containsKey(beanName)) {
 			throw new NoSuitableBeanFoundException("No bean with the name " + beanName + " was found");
 		}
-		Object result = beans.get(beanName);
+
+		Object result = retrieveBeanObjects(beanName);
 		if (!beanClass.isInstance(result)) {
-			throw new NoSuitableBeanFoundException("No bean named " + beanName + " of type " + beanClass.getName() + "was found.");
+			throw new NoSuitableBeanFoundException("No bean named " + beanName + " of type " + beanClass.getName() + " was found.");
 		}
 		return beanClass.cast(result);
 
+	}
+
+	private Object retrieveBeanObjects(String beanName) {
+		Set<Object> beanObjects = beans.get(beanName);
+		if (beanObjects.size() == 0) {
+			throw new NoSuitableBeanFoundException("No suitable bean was found for " + beanName + ".");
+		}
+		if (beanObjects.size() > 1) {
+			throw new BeanConflictException("More than one bean was found for class " + beanName + ".");
+		}
+		return beanObjects.toArray()[0];
 	}
 
 }

@@ -1,10 +1,12 @@
 package com.trent.queo.lwdic.container;
 
 import com.trent.queo.lwdic.container.exceptions.BeanAlreadyDefinedException;
+import com.trent.queo.lwdic.container.exceptions.BeanConflictException;
 import com.trent.queo.lwdic.examples.*;
 import org.junit.Test;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -17,7 +19,7 @@ public class LWDIContainerTest {
 	public void testContainerPackageScan() {
 		LWDIContainer container = new LWDIContainer();
 		container.scanPackage(TEST_PACKAGE);
-		Map<String, Object> containerBeans = container.getBeans();
+		Map<String, Set<Object>> containerBeans = container.getBeans();
 		assertEquals("The container does not manage the expected number of beans.", 6, containerBeans.keySet().size());
 
 		DemoInjectionTargetBean injectionTarget = container.getBeanByType(DemoInjectionTargetBean.class);
@@ -57,7 +59,7 @@ public class LWDIContainerTest {
 		container.addBean("a", beanA);
 		container.addBean("b", beanB);
 
-		Map<String, Object> containerBeans = container.getBeans();
+		Map<String, Set<Object>> containerBeans = container.getBeans();
 		assertEquals("The container does not manage the expected number of beans.", 2, containerBeans.keySet().size());
 
 		assertEquals(beanA, container.getBeanByNameAndType("a", Integer.class));
@@ -82,7 +84,7 @@ public class LWDIContainerTest {
 		container.scanPackage(TEST_PACKAGE);
 		container.addBean("a", beanA);
 		container.addBean("b", beanB);
-		container.injectBeans();
+		container.start();
 
 		DemoInjectionTargetBean injectionTargetBean = container.getBeanByType(DemoInjectionTargetBean.class);
 		assertNotNull(injectionTargetBean.valueA);
@@ -94,5 +96,11 @@ public class LWDIContainerTest {
 
 	}
 
+	@Test(expected = BeanConflictException.class)
+	public void testFailureOnBeanConflict() {
+		LWDIContainer container = new LWDIContainer();
+		container.scanPackage("com.trent.queo.lwdic.injectiontests");
+		container.start();
+	}
 
 }
