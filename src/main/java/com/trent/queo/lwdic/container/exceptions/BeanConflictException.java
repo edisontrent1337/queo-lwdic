@@ -5,7 +5,7 @@ package com.trent.queo.lwdic.container.exceptions;
  * should be injected to a class.
  */
 public class BeanConflictException extends RuntimeException {
-	public BeanConflictException(String s) {
-		super(s);
+	public BeanConflictException(String beanName) {
+		super("More than one bean was found for class " + beanName + ".");
 	}
 }

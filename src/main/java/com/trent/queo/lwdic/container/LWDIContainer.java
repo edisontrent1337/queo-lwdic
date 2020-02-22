@@ -15,19 +15,20 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
-import java.util.stream.Collectors;
 
+/**
+ * A light weight dependency injection container written for the queo coding challenge.
+ * @author Sinthujan Thanabalasingam
+ */
 @SuppressWarnings("WeakerAccess")
 public class LWDIContainer {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(LWDIContainer.class);
 
 	private Map<String, Set<Object>> beans;
-	private Set<String> packages;
 
 	public LWDIContainer() {
 		this.beans = new HashMap<>();
-		this.packages = new HashSet<>();
 	}
 
 	/**
@@ -36,14 +37,13 @@ public class LWDIContainer {
 	 * @param packageName the package to be scanned.
 	 */
 	public void scanPackage(String packageName) {
+
 		LOGGER.info("Scanning package {}...", packageName);
-		this.packages.add(packageName);
 		String beanAnnotation = Bean.class.getName();
-		try (ScanResult scanResult =
-					 new ClassGraph()
-							 .enableAllInfo()
-							 .whitelistPackages(packageName)
-							 .scan()) {
+		try (ScanResult scanResult = new ClassGraph()
+				.enableAllInfo()
+				.whitelistPackages(packageName)
+				.scan()) {
 			for (ClassInfo beanClassInfo : scanResult.getClassesWithAnnotation(beanAnnotation)) {
 
 				AnnotationParameterValueList beanAnnotationParameters = beanClassInfo.getAnnotationInfo(Bean.class.getName()).getParameterValues();
@@ -55,41 +55,55 @@ public class LWDIContainer {
 					}
 				}
 
-				AnnotationInfo namedAnnotationInfo = beanClassInfo.getAnnotationInfo(Named.class.getName());
 				String beanClassName = beanClassInfo.getName();
 				Object instanceOfBean = createInstanceForClass(beanClassName);
+
+				AnnotationInfo namedAnnotationInfo = beanClassInfo.getAnnotationInfo(Named.class.getName());
 				if (namedAnnotationInfo != null) {
-					List<AnnotationParameterValue> namedAnnotationParameterValues = namedAnnotationInfo.getParameterValues();
-					if (namedAnnotationParameterValues.size() == 1) {
-						String beanName = (String) namedAnnotationParameterValues.get(0).getValue();
-						LOGGER.info("Registering bean of type {} with name {}.", beanClassName, beanName);
-						addBean(beanName, instanceOfBean);
-					}
+					processNamedBean(beanClassName, instanceOfBean, namedAnnotationInfo);
 				} else {
 					LOGGER.info("Registering bean of type {} with name {}.", beanClassName, beanClassName);
 					if (beanClassInfo.isInterface() || beanClassInfo.isAbstract()) {
-						LOGGER.info("Registering bean of type {} with name {}.", beanClassName, beanClassName);
 						addInstanceToBean(beanClassName, instanceOfBean);
-					}
-					else {
+					} else {
 						addBean(beanClassName, instanceOfBean);
 					}
 				}
-				for (ClassInfo interfaceClassInfo : beanClassInfo.getInterfaces()) {
-					String interfaceName = interfaceClassInfo.getName();
-					LOGGER.info("Registering bean of type {} with name {}.", interfaceName, interfaceName);
-					addInstanceToBean(interfaceName, instanceOfBean);
-				}
-				ClassInfo superclassInfo = beanClassInfo.getSuperclass();
-				if (superclassInfo != null) {
-					String superClassName = superclassInfo.getName();
-					LOGGER.info("Registering bean of type {} with name {}.", superClassName, superClassName);
-					addInstanceToBean(superClassName, instanceOfBean);
-				}
+				processBeanInterfaces(beanClassInfo, instanceOfBean);
+				processBeanSuperclass(beanClassInfo, instanceOfBean);
 			}
 		}
 	}
 
+	private void processBeanSuperclass(ClassInfo beanClassInfo, Object instanceOfBean) {
+		ClassInfo superclassInfo = beanClassInfo.getSuperclass();
+		if (superclassInfo != null) {
+			String superClassName = superclassInfo.getName();
+			LOGGER.info("Registering bean of type {} with name {}.", superClassName, superClassName);
+			addInstanceToBean(superClassName, instanceOfBean);
+		}
+	}
+
+	private void processBeanInterfaces(ClassInfo beanClassInfo, Object instanceOfBean) {
+		for (ClassInfo interfaceClassInfo : beanClassInfo.getInterfaces()) {
+			String interfaceName = interfaceClassInfo.getName();
+			LOGGER.info("Registering bean of type {} with name {}.", interfaceName, interfaceName);
+			addInstanceToBean(interfaceName, instanceOfBean);
+		}
+	}
+
+	private void processNamedBean(String beanClassName, Object instanceOfBean, AnnotationInfo namedAnnotationInfo) {
+		List<AnnotationParameterValue> namedAnnotationParameterValues = namedAnnotationInfo.getParameterValues();
+		if (namedAnnotationParameterValues.size() == 1) {
+			String beanName = (String) namedAnnotationParameterValues.get(0).getValue();
+			LOGGER.info("Registering bean of type {} with name {}.", beanClassName, beanName);
+			addBean(beanName, instanceOfBean);
+		}
+	}
+
+	/**
+	 * Performs dependency injection to all {@link Bean}s that have fields annotated with {@link Inject}.
+	 */
 	private void injectBeans() {
 
 		Set<Object> beanObjects = new HashSet<>();
@@ -98,15 +112,19 @@ public class LWDIContainer {
 		for (Object bean : beanObjects) {
 			Field[] fields = bean.getClass().getFields();
 			for (Field field : fields) {
-				Set<Annotation> annotations = Arrays.stream(field.getAnnotations()).collect(Collectors.toSet());
-				for (Annotation annotation : annotations) {
-					if (annotation instanceof Inject && annotations.size() == 1) {
-						injectBean(bean, field);
-					}
-					if (annotation instanceof Named) {
-						injectNamedBean(bean, ((Named) annotation).name(), field);
-					}
-				}
+				processAnnotations(bean, field);
+			}
+		}
+	}
+
+	private void processAnnotations(Object bean, Field field) {
+		Annotation[] annotations = field.getAnnotations();
+		for (Annotation annotation : annotations) {
+			if (annotation instanceof Inject && annotations.length == 1) {
+				injectBean(bean, field);
+			}
+			if (annotation instanceof Named) {
+				injectNamedBean(bean, ((Named) annotation).name(), field);
 			}
 		}
 	}
@@ -117,6 +135,7 @@ public class LWDIContainer {
 		try {
 			field.set(targetBean, bean);
 		} catch (IllegalAccessException e) {
+			LOGGER.error("An error occurred while injecting bean {} to bean {}", name, targetBean);
 			e.printStackTrace();
 		}
 	}
@@ -127,6 +146,7 @@ public class LWDIContainer {
 		try {
 			field.set(targetBean, bean);
 		} catch (IllegalAccessException e) {
+			LOGGER.error("An error occurred while injecting bean {} to bean {}", bean, targetBean);
 			e.printStackTrace();
 		}
 	}
@@ -135,29 +155,16 @@ public class LWDIContainer {
 		Class<?> clazz;
 		try {
 			clazz = Class.forName(className);
-		} catch (ClassNotFoundException e) {
+			Constructor<?> constructor = clazz.getConstructor();
+			return constructor.newInstance();
+		} catch (ClassNotFoundException | NoSuchMethodException e) {
+			LOGGER.error("An error occurred while creating an instance for bean {}.", className);
 			e.printStackTrace();
 			return null;
+		} catch (IllegalAccessException | InstantiationException | InvocationTargetException e) {
+			LOGGER.error("An error occurred while creating an instance for bean {}.", className);
+			e.printStackTrace();
 		}
-		Constructor<?> constructor = null;
-		if (clazz != null) {
-			try {
-				constructor = clazz.getConstructor();
-			} catch (NoSuchMethodException e) {
-				e.printStackTrace();
-				return null;
-			}
-		}
-
-		if (constructor != null) {
-			try {
-				return constructor.newInstance();
-			} catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-				e.printStackTrace();
-				return null;
-			}
-		}
-
 		return null;
 	}
 
@@ -205,7 +212,7 @@ public class LWDIContainer {
 		if (!beans.containsKey(beanClassName)) {
 			throw new NoSuitableBeanFoundException("No suitable bean was found for " + beanClassName + ".");
 		}
-		Object result = retrieveBeanObjects(beanClassName);
+		Object result = retrieveBeanObject(beanClassName);
 		if (!beanType.isInstance(result)) {
 			throw new NoSuitableBeanFoundException("No suitable bean was found for " + beanClassName + ".");
 		} else {
@@ -218,7 +225,7 @@ public class LWDIContainer {
 			throw new NoSuitableBeanFoundException("No bean with the name " + beanName + " was found");
 		}
 
-		Object result = retrieveBeanObjects(beanName);
+		Object result = retrieveBeanObject(beanName);
 		if (!beanClass.isInstance(result)) {
 			throw new NoSuitableBeanFoundException("No bean named " + beanName + " of type " + beanClass.getName() + " was found.");
 		}
@@ -226,13 +233,13 @@ public class LWDIContainer {
 
 	}
 
-	private Object retrieveBeanObjects(String beanName) {
+	private Object retrieveBeanObject(String beanName) {
 		Set<Object> beanObjects = beans.get(beanName);
 		if (beanObjects.size() == 0) {
 			throw new NoSuitableBeanFoundException("No suitable bean was found for " + beanName + ".");
 		}
 		if (beanObjects.size() > 1) {
-			throw new BeanConflictException("More than one bean was found for class " + beanName + ".");
+			throw new BeanConflictException(beanName);
 		}
 		return beanObjects.toArray()[0];
 	}
