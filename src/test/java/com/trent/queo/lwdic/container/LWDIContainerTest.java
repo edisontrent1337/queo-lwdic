@@ -1,14 +1,13 @@
 package com.trent.queo.lwdic.container;
 
 import com.trent.queo.lwdic.container.exceptions.BeanAlreadyDefinedException;
-import com.trent.queo.lwdic.examples.DemoImplementingBean;
-import com.trent.queo.lwdic.examples.DemoInjectionTargetBean;
-import com.trent.queo.lwdic.examples.IDemoBean;
+import com.trent.queo.lwdic.examples.*;
 import org.junit.Test;
 
 import java.util.Map;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class LWDIContainerTest {
 
@@ -18,18 +17,35 @@ public class LWDIContainerTest {
 		LWDIContainer container = new LWDIContainer();
 		container.scanPackage(packageName);
 		Map<String, Object> containerBeans = container.getBeans();
-		assertEquals("The container does not manage the expected number of beans.", 4, containerBeans.keySet().size());
+		assertEquals("The container does not manage the expected number of beans.", 6, containerBeans.keySet().size());
 
 		DemoInjectionTargetBean injectionTarget = container.getBeanByType(DemoInjectionTargetBean.class);
 		assertNotNull("The bean was not registered correctly.", injectionTarget);
 
+		assertInterfaceCompatibility(container);
+		assertSuperClassCompatibility(container);
+
+	}
+
+	private void assertInterfaceCompatibility(LWDIContainer container) {
 		IDemoBean interfaceDemoBean = container.getBeanByType(IDemoBean.class);
-		assertNotNull("The bean was not registered correctly, as interfaces implemented by beans were disregarded " +
+		assertNotNull("The bean was not registered correctly, as interfaces implemented by the bean were disregarded " +
 				"during registration.", interfaceDemoBean);
 
-		DemoImplementingBean demoImplementingBean = container.getBeanByType(DemoImplementingBean.class);
-		assertNotNull("The bean was not registered correctly.", demoImplementingBean);
-		assertEquals(demoImplementingBean,interfaceDemoBean);
+		ImplementingDemoBean implementingDemoBean = container.getBeanByType(ImplementingDemoBean.class);
+		assertNotNull("The bean was not registered correctly.", implementingDemoBean);
+		assertEquals("A bean has to be compatible with the interfaces it implements.", implementingDemoBean, interfaceDemoBean);
+	}
+
+	private void assertSuperClassCompatibility(LWDIContainer container) {
+		AbstractDemoBean abstractDemoBean = container.getBeanByType(AbstractDemoBean.class);
+		assertNotNull("The bean was not registered correctly, as super classes of the bean were disregarded " +
+				"during registration.", abstractDemoBean);
+
+		ConcreteDemoBean concreteDemoBean = container.getBeanByType(ConcreteDemoBean.class);
+		assertNotNull("The bean was not registered correctly.", concreteDemoBean);
+		assertEquals("A bean has to be compatible with it's super class.", abstractDemoBean, concreteDemoBean);
+
 	}
 
 	@Test

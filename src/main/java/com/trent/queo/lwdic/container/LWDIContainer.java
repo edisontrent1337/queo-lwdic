@@ -38,21 +38,25 @@ public class LWDIContainer {
 			for (ClassInfo beanClassInfo : scanResult.getClassesWithAnnotation(beanAnnotation)) {
 				AnnotationInfo namedAnnotationInfo = beanClassInfo.getAnnotationInfo(Named.class.getName());
 				String beanClassName = beanClassInfo.getName();
-				Object instanceForClass = createInstanceForClass(beanClassName);
+				Object instanceOfBean = createInstanceForClass(beanClassName);
 				if (namedAnnotationInfo != null) {
 					List<AnnotationParameterValue> beanParameterValues = namedAnnotationInfo.getParameterValues();
 					if (beanParameterValues.size() == 1) {
 						String beanName = (String) beanParameterValues.get(0).getValue();
-						addBean(beanName, instanceForClass);
+						addBean(beanName, instanceOfBean);
 					}
 				} else {
-					addBean(beanClassName, instanceForClass);
+					addBean(beanClassName, instanceOfBean);
 				}
 				for (ClassInfo interfaceClassInfo : beanClassInfo.getInterfaces()) {
 					String interfaceName = interfaceClassInfo.getName();
-					addBean(interfaceName, instanceForClass);
+					addBean(interfaceName, instanceOfBean);
 				}
-
+				ClassInfo superclassInfo = beanClassInfo.getSuperclass();
+				if (superclassInfo != null) {
+					String superClassName = superclassInfo.getName();
+					addBean(superClassName, instanceOfBean);
+				}
 			}
 		}
 	}
